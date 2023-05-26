@@ -106,8 +106,26 @@
 
    emacs ESC 8 F10
    Begin commands to deploy this file using Azure CLI with bash
-   echo az deployment group create --name $name --resource-group $rg  --mode  Incremental  --template-file deploy-CrewTaskMgr.bicep  --parameters ownerId=$AZURE_OBJECTID  '@deploy.parameters.json' deployAPIM=false
-   az deployment group create --name $name --resource-group $rg  --mode  Incremental  --template-file deploy-CrewTaskMgr.bicep  --parameters ownerId=$AZURE_OBJECTID  '@deploy.parameters.json' deployAPIM=false
+   echo az deployment group create --name $name --resource-group $rg  --mode  Incremental  --template-file deploy-CrewTaskMgr.bicep  --parameters ownerId=$AZURE_OBJECTID  '@deploy.parameters.json' deployAPIM=true deployWeb=false deployFunctionApp=false useLocalBackendFunction=false
+   az deployment group create --name $name --resource-group $rg  --mode  Incremental  --template-file deploy-CrewTaskMgr.bicep  --parameters ownerId=$AZURE_OBJECTID  '@deploy.parameters.json' deployAPIM=true deployWeb=false deployFunctionApp=false useLocalBackendFunction=false
+   az resource list -g $rg --query "[?resourceGroup=='$rg'].{ name: name, flavor: kind, resourceType: type, region: location }" --output table
+   End commands to deploy this file using Azure CLI with bash
+
+   emacs ESC 9 F10
+   Begin commands to deploy this file using Azure CLI with bash
+   echo WaitForBuildComplete
+   WaitForBuildComplete
+   echo az deployment group create --name $name --resource-group $rg  --mode  Incremental  --template-file deploy-CrewTaskMgr.bicep  --parameters ownerId=$AZURE_OBJECTID  '@deploy.parameters.json' deployAPIM=true deployWeb=true deployFunctionApp=true useLocalBackendFunction=true
+   az deployment group create --name $name --resource-group $rg  --mode  Incremental  --template-file deploy-CrewTaskMgr.bicep  --parameters ownerId=$AZURE_OBJECTID  '@deploy.parameters.json' deployAPIM=true deployWeb=true deployFunctionApp=true useLocalBackendFunction=true
+   az resource list -g $rg --query "[?resourceGroup=='$rg'].{ name: name, flavor: kind, resourceType: type, region: location }" --output table
+   End commands to deploy this file using Azure CLI with bash
+
+   emacs ESC 10 F10
+   Begin commands to deploy this file using Azure CLI with bash
+   echo WaitForBuildComplete
+   WaitForBuildComplete
+   echo az deployment group create --name $name --resource-group $rg  --mode  Incremental  --template-file deploy-CrewTaskMgr.bicep  --parameters ownerId=$AZURE_OBJECTID  '@deploy.parameters.json' deployAPIM=true deployWeb=true deployFunctionApp=false useLocalBackendFunction=false
+   az deployment group create --name $name --resource-group $rg  --mode  Incremental  --template-file deploy-CrewTaskMgr.bicep  --parameters ownerId=$AZURE_OBJECTID  '@deploy.parameters.json' deployAPIM=true deployWeb=true deployFunctionApp=false useLocalBackendFunction=false
    az resource list -g $rg --query "[?resourceGroup=='$rg'].{ name: name, flavor: kind, resourceType: type, region: location }" --output table
    End commands to deploy this file using Azure CLI with bash
 
@@ -115,10 +133,25 @@
 
 @description('Deploy the APIM')
 param deployAPIM bool = false
-output deployAPIM bool =deployAPIM
+output deployAPIM bool = deployAPIM
+
+@description('Deploy the Web Site')
+param deployWeb bool = false
+output deployWeb bool = deployWeb
+
+@description('deploy FunctionApp')
+param deployFunctionApp bool = false
+output deployFunctionApp bool = deployFunctionApp
+
+@description('Reference Backend Function')
+param useLocalBackendFunction bool = false
+output useLocalBackendFunction bool = useLocalBackendFunction
 
 @description('Rquire Azure AD authentication for Azure Func CrewTaskMgrAuthSvs')
 param requireAuthentication bool = true
+
+@description('Location of the Authenticated Function App')
+param locCrewTaskMgrAuthFuncApp string = 'westu2'
 
 param applicationId string
 
@@ -248,7 +281,6 @@ param hostingPlanName string = '${name}-plan'
 output AccountKey string = cosmosAccountKey
 output EndPoint string = cosmosEndPoint
 
-
 // begin function app
 
 param funcCrewTaskMgrAuthSvcsName string = 'CrewTaskMgrAuthSvcs'
@@ -306,11 +338,11 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2021-09-01'
     parent: stgCrewTaskMgrAuthFunc
 }
 
-param myLogAnalyticsId string =  '/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourcegroups/defaultresourcegroup-wus2/providers/microsoft.operationalinsights/workspaces/defaultworkspace-acc26051-92a5-4ed1-a226-64a187bc27db-wus2'
+param myLogAnalyticsId string = '/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourcegroups/defaultresourcegroup-wus2/providers/microsoft.operationalinsights/workspaces/defaultworkspace-acc26051-92a5-4ed1-a226-64a187bc27db-wus2'
 //resource myLogAnalytics 'Microsoft.OperationalInsights/workspaces@2021-12-01-preview' existing = {
 //    name: '${name}-LogAnalytics'
-    
-    //Id: '/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourcegroups/defaultresourcegroup-wus2/providers/microsoft.operationalinsights/workspaces/defaultworkspace-acc26051-92a5-4ed1-a226-64a187bc27db-wus2'
+
+//Id: '/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourcegroups/defaultresourcegroup-wus2/providers/microsoft.operationalinsights/workspaces/defaultworkspace-acc26051-92a5-4ed1-a226-64a187bc27db-wus2'
 //}
 resource storageDataPlaneLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
     name: '${storageAccountName}-logs'
@@ -343,14 +375,14 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
 
 var blobStorageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccountName};AccountKey=${stgCrewTaskMgrAuthFunc.listKeys().keys[0].value}'
 
-resource funcCrewTaskMgrAuthSvcs 'Microsoft.Web/sites@2022-09-01' = {
+resource funcCrewTaskMgrAuthSvcs 'Microsoft.Web/sites@2022-09-01' = if (deployFunctionApp) {
     name: '${name}-func-CrewTaskMgrAuthSvcs'
-    location: location
+    location: locCrewTaskMgrAuthFuncApp
     kind: 'functionapp'
     identity: {
         type: 'SystemAssigned'
-    }    
-    properties: {        
+    }
+    properties: {
         clientAffinityEnabled: false
         httpsOnly: true
         enabled: true
@@ -473,20 +505,20 @@ resource funcCrewTaskMgrAuthSvcs 'Microsoft.Web/sites@2022-09-01' = {
             'AzureWebJobsStorage': blobStorageConnectionString
         }
     }
-     // resource sites_CrewTaskMgrAuthenticatedSvcs_name_Hello 'functions@2022-09-01' = {
-     //     name: 'Hello'
-     //     properties: {
-     //         script_root_path_href: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/admin/vfs/site/wwwroot/Hello/'
-     //         script_href: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/admin/vfs/site/wwwroot/bin/CrewTaskMgrAuthenticatedServices.dll'
-     //         config_href: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/admin/vfs/site/wwwroot/Hello/function.json'
-     //         test_data_href: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/admin/vfs/data/Functions/sampledata/Hello.dat'
-     //         href: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/admin/functions/Hello'
-     //         config: {}
-     //         invoke_url_template: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/api/hello'
-     //         language: 'DotNetAssembly'
-     //         isDisabled: false
-     //     }
-     // }
+    // resource sites_CrewTaskMgrAuthenticatedSvcs_name_Hello 'functions@2022-09-01' = {
+    //     name: 'Hello'
+    //     properties: {
+    //         script_root_path_href: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/admin/vfs/site/wwwroot/Hello/'
+    //         script_href: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/admin/vfs/site/wwwroot/bin/CrewTaskMgrAuthenticatedServices.dll'
+    //         config_href: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/admin/vfs/site/wwwroot/Hello/function.json'
+    //         test_data_href: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/admin/vfs/data/Functions/sampledata/Hello.dat'
+    //         href: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/admin/functions/Hello'
+    //         config: {}
+    //         invoke_url_template: 'https://${funcCrewTaskMgrAuthSvcsName}.azurewebsites.net/api/hello'
+    //         language: 'DotNetAssembly'
+    //         isDisabled: false
+    //     }
+    // }
 
     resource siteName_web 'sourcecontrols@2020-12-01' = {
         name: 'web'
@@ -500,8 +532,7 @@ resource funcCrewTaskMgrAuthSvcs 'Microsoft.Web/sites@2022-09-01' = {
 
 // end function app
 
-
-resource webHostingPlan 'Microsoft.Web/serverfarms@2020-12-01' = {
+resource webHostingPlan 'Microsoft.Web/serverfarms@2020-12-01' = if (deployWeb) {
     name: '${name}-web-plan'
     location: location
     sku: {
@@ -524,7 +555,7 @@ resource webHostingPlan 'Microsoft.Web/serverfarms@2020-12-01' = {
     }
 }
 
-resource website 'Microsoft.Web/sites@2022-09-01' = {
+resource website 'Microsoft.Web/sites@2022-09-01' = if (deployWeb) {
     name: '${name}-web'
     location: location
     tags: {
@@ -626,136 +657,133 @@ resource website 'Microsoft.Web/sites@2022-09-01' = {
             // 'ApplicationInsights:InstrumentationKey': instrumentationKey
         }
     }
-}
-//  resource sites_CTMBlazorSvrClient20230409134317_name_ftp 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@2022-09-01' = {
-//    parent: website
-//    name: 'ftp'
-//    location: location
-//    properties: {
-//      allow: true
-//    }
-//  }
 
-//  resource sites_CTMBlazorSvrClient20230409134317_name_scm 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@2022-09-01' = {
-//    parent: website
-//    name: 'scm'
-//    location: location
-//    properties: {
-//      allow: true
-//    }
-//  }
+    //  resource sites_CTMBlazorSvrClient20230409134317_name_ftp 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@2022-09-01' = {
+    //    parent: website
+    //    name: 'ftp'
+    //    location: location
+    //    properties: {
+    //      allow: true
+    //    }
+    //  }
 
-resource sites_CTMBlazorSvrClient20230409134317_name_web 'Microsoft.Web/sites/config@2022-09-01' = {
-    parent: website
-    name: 'web'
-    properties: {
-        numberOfWorkers: 1
-        defaultDocuments: [
-            'Default.htm'
-            'Default.html'
-            'Default.asp'
-            'index.htm'
-            'index.html'
-            'iisstart.htm'
-            'default.aspx'
-            'index.php'
-            'hostingstart.html'
-        ]
-        netFrameworkVersion: 'v7.0'
-        phpVersion: '5.6'
-        requestTracingEnabled: false
-        remoteDebuggingEnabled: false
-        httpLoggingEnabled: false
-        acrUseManagedIdentityCreds: false
-        logsDirectorySizeLimit: 35
-        detailedErrorLoggingEnabled: false
-        publishingUsername: '$CTMBlazorSvrClient20230409134317'
-        scmType: 'None'
-        use32BitWorkerProcess: true
-        webSocketsEnabled: false
-        alwaysOn: false
-        managedPipelineMode: 'Integrated'
-        virtualApplications: [
-            {
-                virtualPath: '/'
-                physicalPath: 'site\\wwwroot'
-                preloadEnabled: false
+    //  resource sites_CTMBlazorSvrClient20230409134317_name_scm 'Microsoft.Web/sites/basicPublishingCredentialsPolicies@2022-09-01' = {
+    //    parent: website
+    //    name: 'scm'
+    //    location: location
+    //    properties: {
+    //      allow: true
+    //    }
+    //  }
+
+    resource sites_CTMBlazorSvrClient20230409134317_name_web 'config@2022-09-01' = {
+        name: 'web'
+        properties: {
+            numberOfWorkers: 1
+            defaultDocuments: [
+                'Default.htm'
+                'Default.html'
+                'Default.asp'
+                'index.htm'
+                'index.html'
+                'iisstart.htm'
+                'default.aspx'
+                'index.php'
+                'hostingstart.html'
+            ]
+            netFrameworkVersion: 'v7.0'
+            phpVersion: '5.6'
+            requestTracingEnabled: false
+            remoteDebuggingEnabled: false
+            httpLoggingEnabled: false
+            acrUseManagedIdentityCreds: false
+            logsDirectorySizeLimit: 35
+            detailedErrorLoggingEnabled: false
+            publishingUsername: '$CTMBlazorSvrClient20230409134317'
+            scmType: 'None'
+            use32BitWorkerProcess: true
+            webSocketsEnabled: false
+            alwaysOn: false
+            managedPipelineMode: 'Integrated'
+            virtualApplications: [
+                {
+                    virtualPath: '/'
+                    physicalPath: 'site\\wwwroot'
+                    preloadEnabled: false
+                }
+            ]
+            loadBalancing: 'LeastRequests'
+            experiments: {
+                rampUpRules: []
             }
-        ]
-        loadBalancing: 'LeastRequests'
-        experiments: {
-            rampUpRules: []
+            autoHealEnabled: false
+            vnetRouteAllEnabled: false
+            vnetPrivatePortsCount: 0
+            localMySqlEnabled: false
+            managedServiceIdentityId: 24402
+            ipSecurityRestrictions: [
+                {
+                    ipAddress: 'Any'
+                    action: 'Allow'
+                    priority: 2147483647
+                    name: 'Allow all'
+                    description: 'Allow all access'
+                }
+            ]
+            scmIpSecurityRestrictions: [
+                {
+                    ipAddress: 'Any'
+                    action: 'Allow'
+                    priority: 2147483647
+                    name: 'Allow all'
+                    description: 'Allow all access'
+                }
+            ]
+            scmIpSecurityRestrictionsUseMain: false
+            http20Enabled: false
+            minTlsVersion: '1.2'
+            scmMinTlsVersion: '1.2'
+            ftpsState: 'FtpsOnly'
+            preWarmedInstanceCount: 0
+            elasticWebAppScaleLimit: 0
+            functionsRuntimeScaleMonitoringEnabled: false
+            minimumElasticInstanceCount: 0
+            azureStorageAccounts: {}
         }
-        autoHealEnabled: false
-        vnetRouteAllEnabled: false
-        vnetPrivatePortsCount: 0
-        localMySqlEnabled: false
-        managedServiceIdentityId: 24402
-        ipSecurityRestrictions: [
-            {
-                ipAddress: 'Any'
-                action: 'Allow'
-                priority: 2147483647
-                name: 'Allow all'
-                description: 'Allow all access'
-            }
-        ]
-        scmIpSecurityRestrictions: [
-            {
-                ipAddress: 'Any'
-                action: 'Allow'
-                priority: 2147483647
-                name: 'Allow all'
-                description: 'Allow all access'
-            }
-        ]
-        scmIpSecurityRestrictionsUseMain: false
-        http20Enabled: false
-        minTlsVersion: '1.2'
-        scmMinTlsVersion: '1.2'
-        ftpsState: 'FtpsOnly'
-        preWarmedInstanceCount: 0
-        elasticWebAppScaleLimit: 0
-        functionsRuntimeScaleMonitoringEnabled: false
-        minimumElasticInstanceCount: 0
-        azureStorageAccounts: {}
+    }
+
+    resource sites_CTMBlazorSvrClient20230409134317_name_sites_CTMBlazorSvrClient20230409134317_name_azurewebsites_net 'hostNameBindings@2022-09-01' = {
+
+        name: '${website.name}.azurewebsites.net'
+        properties: {
+            siteName: 'CTMBlazorSvrClient20230409134317'
+            hostNameType: 'Verified'
+        }
+    }
+
+    resource sites_CTMBlazorSvrClient20230409134317_name_Microsoft_AspNetCore_AzureAppServices_SiteExtension 'siteextensions@2022-09-01' = {
+
+        name: 'Microsoft.AspNetCore.AzureAppServices.SiteExtension'
     }
 }
-
-resource sites_CTMBlazorSvrClient20230409134317_name_sites_CTMBlazorSvrClient20230409134317_name_azurewebsites_net 'Microsoft.Web/sites/hostNameBindings@2022-09-01' = {
-    parent: website
-    name: '${website.name}.azurewebsites.net'
-    properties: {
-        siteName: 'CTMBlazorSvrClient20230409134317'
-        hostNameType: 'Verified'
-    }
-}
-
-resource sites_CTMBlazorSvrClient20230409134317_name_Microsoft_AspNetCore_AzureAppServices_SiteExtension 'Microsoft.Web/sites/siteextensions@2022-09-01' = {
-    parent: website
-    name: 'Microsoft.AspNetCore.AzureAppServices.SiteExtension'
-}
-
 // Output our variable
 
 output blobStorageConnectionString string = blobStorageConnectionString
 
-
 // https://stackoverflow.com/questions/75544346/how-can-i-get-azure-functions-keys-from-bicep
-    //var funcKey = listkeys(concat(resourceId('Microsoft.Web/sites', funcCrewTaskMgrAuthSvcs), '/host/default/'),'2021-02-01').masterKey.value
-    //var fk = funcCrewTaskMgrAuthSvcs.listkeys().keys[0]
-    // var funcKey = listkeys('${funcCrewTaskMgrAuthSvcs.id}/host/default', '2022-03-01').masterKey[0].value
+//var funcKey = listkeys(concat(resourceId('Microsoft.Web/sites', funcCrewTaskMgrAuthSvcs), '/host/default/'),'2021-02-01').masterKey.value
+//var fk = funcCrewTaskMgrAuthSvcs.listkeys().keys[0]
+// var funcKey = listkeys('${funcCrewTaskMgrAuthSvcs.id}/host/default', '2022-03-01').masterKey[0].value
 
 // https://stackoverflow.com/questions/69251430/output-newly-created-function-app-key-using-bicep
 var defaultHostKey = listkeys('${funcCrewTaskMgrAuthSvcs.id}/host/default', '2016-08-01').functionKeys.default
 
 output defaultAppFunctionKey string = defaultHostKey
 
-
 param components_appinsCrewTaskMgrAuthenticatedServices_externalid string = '/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_CrewTaskMgr/providers/microsoft.insights/components/appinsCrewTaskMgrAuthenticatedServices'
 param apimCrewTaskMgtName string = '${name}-apim'
 
-resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/service@2022-09-01-preview' =if (deployAPIM) {
+resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/service@2022-09-01-preview' = if (deployAPIM) {
     name: apimCrewTaskMgtName
     location: location
     sku: {
@@ -792,44 +820,44 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
         apiVersionConstraint: {}
         publicNetworkAccess: 'Enabled'
     }
-    dependsOn:[
+    dependsOn: [
         funcCrewTaskMgrAuthSvcs
     ]
-     // resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_get_hello 'operations@2022-09-01-preview' = {
-     //     name: 'get-hello'
-     //     properties: {
-     //         displayName: 'Hello'
-     //         method: 'GET'
-     //         urlTemplate: '/Hello'
-     //         templateParameters: []
-     //         responses: []
-     //     }
-     //     resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_get_hello_policy 'policies@2022-09-01-preview' = {
-     //         name: 'policy'
-     //         properties: {
-     //             value: '<policies>\r\n  <inbound>\r\n    <base />\r\n    <set-backend-service id="apim-generated-policy" backend-id="${name}-func-crewtaskmgrauthsvcs" />\r\n  </inbound>\r\n  <backend>\r\n    <base />\r\n  </backend>\r\n  <outbound>\r\n    <base />\r\n  </outbound>\r\n  <on-error>\r\n    <base />\r\n  </on-error>\r\n</policies>'
-     //             format: 'xml'
-     //         }
-     //     }
-     // }
+    // resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_get_hello 'operations@2022-09-01-preview' = {
+    //     name: 'get-hello'
+    //     properties: {
+    //         displayName: 'Hello'
+    //         method: 'GET'
+    //         urlTemplate: '/Hello'
+    //         templateParameters: []
+    //         responses: []
+    //     }
+    //     resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_get_hello_policy 'policies@2022-09-01-preview' = {
+    //         name: 'policy'
+    //         properties: {
+    //             value: '<policies>\r\n  <inbound>\r\n    <base />\r\n    <set-backend-service id="apim-generated-policy" backend-id="${name}-func-crewtaskmgrauthsvcs" />\r\n  </inbound>\r\n  <backend>\r\n    <base />\r\n  </backend>\r\n  <outbound>\r\n    <base />\r\n  </outbound>\r\n  <on-error>\r\n    <base />\r\n  </on-error>\r\n</policies>'
+    //             format: 'xml'
+    //         }
+    //     }
+    // }
 
-     // resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_post_hello 'operations@2022-09-01-preview' = {
-     //     name: 'post-hello'
-     //     properties: {
-     //         displayName: 'Hello'
-     //         method: 'POST'
-     //         urlTemplate: '/Hello'
-     //         templateParameters: []
-     //         responses: []
-     //     }
-     //     resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_post_hello_policy 'policies@2022-09-01-preview' = {
-     //         name: 'policy'
-     //         properties: {
-     //             value: '<policies>\r\n  <inbound>\r\n    <base />\r\n    <set-backend-service id="apim-generated-policy" backend-id="${name}-func-crewtaskmgrauthsvcs" />\r\n  </inbound>\r\n  <backend>\r\n    <base />\r\n  </backend>\r\n  <outbound>\r\n    <base />\r\n  </outbound>\r\n  <on-error>\r\n    <base />\r\n  </on-error>\r\n</policies>'
-     //             format: 'xml'
-     //         }
-     //     }
-     // }
+    // resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_post_hello 'operations@2022-09-01-preview' = {
+    //     name: 'post-hello'
+    //     properties: {
+    //         displayName: 'Hello'
+    //         method: 'POST'
+    //         urlTemplate: '/Hello'
+    //         templateParameters: []
+    //         responses: []
+    //     }
+    //     resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_post_hello_policy 'policies@2022-09-01-preview' = {
+    //         name: 'policy'
+    //         properties: {
+    //             value: '<policies>\r\n  <inbound>\r\n    <base />\r\n    <set-backend-service id="apim-generated-policy" backend-id="${name}-func-crewtaskmgrauthsvcs" />\r\n  </inbound>\r\n  <backend>\r\n    <base />\r\n  </backend>\r\n  <outbound>\r\n    <base />\r\n  </outbound>\r\n  <on-error>\r\n    <base />\r\n  </on-error>\r\n</policies>'
+    //             format: 'xml'
+    //         }
+    //     }
+    // }
     resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs 'apis@2022-09-01-preview' = {
         name: '${name}-func-crewtaskmgrauthsvcs'
         properties: {
@@ -858,7 +886,7 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
             description: '${name}-func-CrewTaskMgrAuthSvcs'
             url: 'https://${name}-func-crewtaskmgrauthsvcs.azurewebsites.net/api'
             protocol: 'http'
-            resourceId: 'https://management.azure.com/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_AuthFuncSourceControl/providers/Microsoft.Web/sites/${name}-func-CrewTaskMgrAuthSvcs'
+            resourceId: (useLocalBackendFunction ? '/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_CrewTaskMgr/providers/Microsoft.Web/sites/jac3sukjdrxzi-func-CrewTaskMgrAuthSvcs' :  'https://management.azure.com/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_AuthFuncSourceControl/providers/Microsoft.Web/sites/${name}-func-CrewTaskMgrAuthSvcs')
             credentials: {
                 header: {
                     'x-functions-key': [
@@ -868,27 +896,27 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
             }
         }
     }
-     // resource service_jac3sukjdrxzi_apim_name_644aea511aff160ccc6b04cc 'namedValues@2022-09-01-preview' = {
-     //     name: '644aea511aff160ccc6b04cc'
-     //     properties: {
-     //         displayName: 'Logger-Credentials--644aea511aff160ccc6b04cd'
-     //         secret: true
-     //     }
-     // }
-     // resource service_jac3sukjdrxzi_apim_name_crewtaskmgrauthenticatedsvcs_key 'namedValues@2022-09-01-preview' = {
-     //     name: 'crewtaskmgrauthenticatedsvcs-key'
-     //     properties: {
-     //         displayName: 'crewtaskmgrauthenticatedsvcs-key'
-     //         tags: [
-     //             'key'
-     //             'function'
-     //             'auto'
-     //         ]
-     //         secret: true
-     //     }
-     // }
-     
-     // this is causing error : {"code":"ValidationError","message":"One or more fields contain incorrect values:","details":[{"code":"ValidationError","target":"value","message":"Either Value or Keyvault must be provided."}]} probably because it cannot find the property
+    // resource service_jac3sukjdrxzi_apim_name_644aea511aff160ccc6b04cc 'namedValues@2022-09-01-preview' = {
+    //     name: '644aea511aff160ccc6b04cc'
+    //     properties: {
+    //         displayName: 'Logger-Credentials--644aea511aff160ccc6b04cd'
+    //         secret: true
+    //     }
+    // }
+    // resource service_jac3sukjdrxzi_apim_name_crewtaskmgrauthenticatedsvcs_key 'namedValues@2022-09-01-preview' = {
+    //     name: 'crewtaskmgrauthenticatedsvcs-key'
+    //     properties: {
+    //         displayName: 'crewtaskmgrauthenticatedsvcs-key'
+    //         tags: [
+    //             'key'
+    //             'function'
+    //             'auto'
+    //         ]
+    //         secret: true
+    //     }
+    // }
+
+    // this is causing error : {"code":"ValidationError","message":"One or more fields contain incorrect values:","details":[{"code":"ValidationError","target":"value","message":"Either Value or Keyvault must be provided."}]} probably because it cannot find the property
     resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_key 'namedValues@2022-09-01-preview' = {
         name: '${name}-func-crewtaskmgrauthsvcs-key'
         properties: {
@@ -934,49 +962,49 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
 
         }
 
-         // resource service_jac3sukjdrxzi_apim_name_unlimited_646c13b23a838a1df4462c9d 'groupLinks@2022-09-01-preview' = {
-         //     name: '646c13b23a838a1df4462c9d'
-         //     properties: {
-         //         groupId: '${service_jac3sukjdrxzi_apim_name_resource.id}/groups/administrators'
-         //     }
-         // }
+        // resource service_jac3sukjdrxzi_apim_name_unlimited_646c13b23a838a1df4462c9d 'groupLinks@2022-09-01-preview' = {
+        //     name: '646c13b23a838a1df4462c9d'
+        //     properties: {
+        //         groupId: '${service_jac3sukjdrxzi_apim_name_resource.id}/groups/administrators'
+        //     }
+        // }
 
-         // resource service_jac3sukjdrxzi_apim_name_unlimited_646c3351a578e906b80f08b7 'apiLinks@2022-09-01-preview' = {
-         //     name: '646c3351a578e906b80f08b7'
-         //     properties: {
-         //         apiId: service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs.id
-         //     }
-         // }
+        // resource service_jac3sukjdrxzi_apim_name_unlimited_646c3351a578e906b80f08b7 'apiLinks@2022-09-01-preview' = {
+        //     name: '646c3351a578e906b80f08b7'
+        //     properties: {
+        //         apiId: service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs.id
+        //     }
+        // }
     }
-     // resource Microsoft_ApiManagement_service_properties_service_jac3sukjdrxzi_apim_name_644aea511aff160ccc6b04cc 'properties@2019-01-01' = {
-     //     name: '644aea511aff160ccc6b04cc'
-     //     properties: {
-     //         displayName: 'Logger-Credentials--644aea511aff160ccc6b04cd'
-     //         value: 'c71b3ac4-9f20-4465-9963-0737c42218a0'
-     //         secret: true
-     //     }
-     // }
-     // resource Microsoft_ApiManagement_service_properties_service_jac3sukjdrxzi_apim_name_crewtaskmgrauthenticatedsvcs_key 'properties@2019-01-01' = {
-     //     name: 'crewtaskmgrauthenticatedsvcs-key'
-     //     properties: {
-     //         displayName: 'crewtaskmgrauthenticatedsvcs-key'
-     //         value: 'i-aZx0ei-uVAOcfFO9tQBKK0WlYS2Q-E3VyuETG32Tz8AzFuWsftpg=='
-     //         tags: [
-     //             'key'
-     //             'function'
-     //             'auto'
-     //         ]
-     //         secret: true
-     //     }
-     // }
+    // resource Microsoft_ApiManagement_service_properties_service_jac3sukjdrxzi_apim_name_644aea511aff160ccc6b04cc 'properties@2019-01-01' = {
+    //     name: '644aea511aff160ccc6b04cc'
+    //     properties: {
+    //         displayName: 'Logger-Credentials--644aea511aff160ccc6b04cd'
+    //         value: 'c71b3ac4-9f20-4465-9963-0737c42218a0'
+    //         secret: true
+    //     }
+    // }
+    // resource Microsoft_ApiManagement_service_properties_service_jac3sukjdrxzi_apim_name_crewtaskmgrauthenticatedsvcs_key 'properties@2019-01-01' = {
+    //     name: 'crewtaskmgrauthenticatedsvcs-key'
+    //     properties: {
+    //         displayName: 'crewtaskmgrauthenticatedsvcs-key'
+    //         value: 'i-aZx0ei-uVAOcfFO9tQBKK0WlYS2Q-E3VyuETG32Tz8AzFuWsftpg=='
+    //         tags: [
+    //             'key'
+    //             'function'
+    //             'auto'
+    //         ]
+    //         secret: true
+    //     }
+    // }
 
-     // resource service_jac3sukjdrxzi_apim_name_master 'subscriptions@2022-09-01-preview' = {
-     //     name: 'master'
-     //     properties: {
-     //         scope: '${service_jac3sukjdrxzi_apim_name_resource.id}/'
-     //         displayName: 'Built-in all-access subscription'
-     //         state: 'active'
-     //         allowTracing: false
-     //     }
-     // }
+    // resource service_jac3sukjdrxzi_apim_name_master 'subscriptions@2022-09-01-preview' = {
+    //     name: 'master'
+    //     properties: {
+    //         scope: '${service_jac3sukjdrxzi_apim_name_resource.id}/'
+    //         displayName: 'Built-in all-access subscription'
+    //         state: 'active'
+    //         allowTracing: false
+    //     }
+    // }
 }
