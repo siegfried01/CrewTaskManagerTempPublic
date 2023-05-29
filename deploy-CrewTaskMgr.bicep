@@ -8,9 +8,9 @@
 
    emacs F10
    Begin commands to deploy this file using Azure CLI with bash
-   echo WaitForBuildComplete
-   WaitForBuildComplete
-   #echo "begin shutdown"
+   #echo WaitForBuildComplete
+   #WaitForBuildComplete
+   echo "begin shutdown"
    #echo az functionapp delete --name jac3sukjdrxzi-func-CrewTaskMgrAuthSvcs --resource-group $rg
    #az functionapp delete --name jac3sukjdrxzi-func-CrewTaskMgrAuthSvcs --resource-group $rg
    #echo az storage account delete -n ${uniqueName}stgctmfunc -g $rg --yes
@@ -22,6 +22,16 @@
    #echo az apim deletedservice purge --service-name ${uniqueName}-apim --location $loc
    #az apim deletedservice purge --service-name ${uniqueName}-apim --location $loc
    #echo Previous shutdown/build is complete. Begin deployment build.
+   echo az apim list  --resource-group $rg
+   az apim list  --resource-group $rg
+   echo az apim deletedservice purge --service-name ${uniqueName}-apim --location $loc
+   az apim deletedservice purge --service-name ${uniqueName}-apim --location $loc
+   echo az keyvault purge --name ${uniqueName}-kv --location $loc 
+   az keyvault purge --name ${uniqueName}-kv --location $loc 
+   echo az deployment group create --mode complete --template-file ./clear-resources.json --resource-group $rg
+   az deployment group create --mode complete --template-file ./clear-resources.json --resource-group $rg
+   #echo az group delete -g $rg  --yes 
+   #az group delete -g $rg  --yes
    echo az apim list  --resource-group $rg
    az apim list  --resource-group $rg
    echo az apim deletedservice purge --service-name ${uniqueName}-apim --location $loc
@@ -122,8 +132,14 @@
 
    emacs ESC 10 F10
    Begin commands to deploy this file using Azure CLI with bash
-   echo WaitForBuildComplete
-   WaitForBuildComplete
+   #echo WaitForBuildComplete
+   #WaitForBuildComplete
+   echo az deployment group create --mode complete --template-file ./clear-resources.json --resource-group $rg
+   az deployment group create --mode complete --template-file ./clear-resources.json --resource-group $rg
+   echo az apim deletedservice purge --service-name ${uniqueName}-apim --location $loc
+   az apim deletedservice purge --service-name ${uniqueName}-apim --location $loc
+   echo az keyvault purge --name ${uniqueName}-kv --location $loc 
+   az keyvault purge --name ${uniqueName}-kv --location $loc 
    echo az deployment group create --name $name --resource-group $rg  --mode  Incremental  --template-file deploy-CrewTaskMgr.bicep  --parameters ownerId=$AZURE_OBJECTID  '@deploy.parameters.json' deployAPIM=true deployWeb=true deployFunctionApp=false useLocalBackendFunction=false
    az deployment group create --name $name --resource-group $rg  --mode  Incremental  --template-file deploy-CrewTaskMgr.bicep  --parameters ownerId=$AZURE_OBJECTID  '@deploy.parameters.json' deployAPIM=true deployWeb=true deployFunctionApp=false useLocalBackendFunction=false
    az resource list -g $rg --query "[?resourceGroup=='$rg'].{ name: name, flavor: kind, resourceType: type, region: location }" --output table
@@ -766,6 +782,7 @@ resource website 'Microsoft.Web/sites@2022-09-01' = if (deployWeb) {
         name: 'Microsoft.AspNetCore.AzureAppServices.SiteExtension'
     }
 }
+
 // Output our variable
 
 output blobStorageConnectionString string = blobStorageConnectionString
@@ -775,8 +792,14 @@ output blobStorageConnectionString string = blobStorageConnectionString
 //var fk = funcCrewTaskMgrAuthSvcs.listkeys().keys[0]
 // var funcKey = listkeys('${funcCrewTaskMgrAuthSvcs.id}/host/default', '2022-03-01').masterKey[0].value
 
+resource funcCrewTaskMgrAuthSvcsOther 'Microsoft.Web/sites@2022-09-01' existing = if (!useLocalBackendFunction) {
+    name: 'zbckw6q67sgh2-func-CrewTaskMgrAuthSvcs'
+    scope: resourceGroup('rg_AuthFuncSourceControl')
+}
+var appFunctionId = useLocalBackendFunction ? '${funcCrewTaskMgrAuthSvcs.id}/host/default' : '${funcCrewTaskMgrAuthSvcsOther.id}/host/default'
+
 // https://stackoverflow.com/questions/69251430/output-newly-created-function-app-key-using-bicep
-var defaultHostKey = listkeys('${funcCrewTaskMgrAuthSvcs.id}/host/default', '2016-08-01').functionKeys.default
+var defaultHostKey = listkeys(appFunctionId, '2016-08-01').functionKeys.default
 
 output defaultAppFunctionKey string = defaultHostKey
 
@@ -859,13 +882,16 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
     //     }
     // }
     resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs 'apis@2022-09-01-preview' = {
-        name: '${name}-func-crewtaskmgrauthsvcs'
+        // name: '${name}-api-func-crewtaskmgrauthsvcs'
+        name: 'zbckw6q67sgh2-func-crewtaskmgrauthsvcs'
         properties: {
-            displayName: '${name}-func-CrewTaskMgrAuthSvcs'
+            //displayName: '${name}-api-func-CrewTaskMgrAuthSvcs'
+            displayName: 'zbckw6q67sgh2-func-CrewTaskMgrAuthSvcs'
             apiRevision: '1'
             description: 'Import from "${name}-func-CrewTaskMgrAuthSvcs" Function App'
             subscriptionRequired: true
-            path: '${name}-func-CrewTaskMgrAuthSvcs'
+            //path: '${name}-func-CrewTaskMgrAuthSvcs'
+            path: 'zbckw6q67sgh2-func-CrewTaskMgrAuthSvcs'
             protocols: [
                 'https'
             ]
@@ -880,22 +906,49 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
             isCurrent: true
         }
     }
+    /*
     resource Microsoft_ApiManagement_service_backends_service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs 'backends@2022-09-01-preview' = {
-        name: '${name}-func-crewtaskmgrauthsvcs'
+        name: 'zbckw6q67sgh2-func-crewtaskmgrauthsvcs'
+        //name: '${name}-backend-func-crewtaskmgrauthsvcs'
         properties: {
-            description: '${name}-func-CrewTaskMgrAuthSvcs'
-            url: 'https://${name}-func-crewtaskmgrauthsvcs.azurewebsites.net/api'
+            //description: '${name}-backend-func-CrewTaskMgrAuthSvcs'
+            description: 'zbckw6q67sgh2-func-CrewTaskMgrAuthSvcs'
+            //url: 'https://${name}-func-crewtaskmgrauthsvcs.azurewebsites.net/api'
+            url: 'https://zbckw6q67sgh2-func-crewtaskmgrauthsvcs.azurewebsites.net/api'
             protocol: 'http'
-            resourceId: (useLocalBackendFunction ? '/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_CrewTaskMgr/providers/Microsoft.Web/sites/jac3sukjdrxzi-func-CrewTaskMgrAuthSvcs' :  'https://management.azure.com/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_AuthFuncSourceControl/providers/Microsoft.Web/sites/${name}-func-CrewTaskMgrAuthSvcs')
+            // {"code":"ValidationError","message":"One or more fields contain incorrect values:","details":[{"code":"ValidationError","target":"resourceId","message":"Value should represent absolute http URL"}]}
+            //resourceId:  funcCrewTaskMgrAuthSvcsOther.id //'/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_AuthFuncSourceControl/providers/Microsoft.Web/sites/zbckw6q67sgh2-func-CrewTaskMgrAuthSvcs'
+            //resourceId: (useLocalBackendFunction ? '/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_CrewTaskMgr/providers/Microsoft.Web/sites/jac3sukjdrxzi-func-CrewTaskMgrAuthSvcs' : '/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_AuthFuncSourceControl/providers/Microsoft.Web/sites/zbckw6q67sgh2-func-CrewTaskMgrAuthSvcs' )
+            resourceId: 'https://management.azure.com/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_AuthFuncSourceControl/providers/Microsoft.Web/sites/zbckw6q67sgh2-func-CrewTaskMgrAuthSvcs'
             credentials: {
                 header: {
                     'x-functions-key': [
-                        '{{${name}-func-crewtaskmgrauthsvcs-key}}'
+                        //'{{${name}-func-crewtaskmgrauthsvcs-key}}'
+                        '{{zbckw6q67sgh2-func-crewtaskmgrauthsvcs-key}}'
                     ]
                 }
             }
         }
     }
+ */
+
+    resource Microsoft_ApiManagement_service_backends_service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs 'backends@2022-09-01-preview' = {
+        name: 'zbckw6q67sgh2-func-crewtaskmgrauthsvcs'
+        properties: {
+            description: 'zbckw6q67sgh2-func-CrewTaskMgrAuthSvcs'
+            url: 'https://zbckw6q67sgh2-func-crewtaskmgrauthsvcs.azurewebsites.net/api'
+            protocol: 'http'
+            resourceId: 'https://management.azure.com/subscriptions/acc26051-92a5-4ed1-a226-64a187bc27db/resourceGroups/rg_AuthFuncSourceControl/providers/Microsoft.Web/sites/zbckw6q67sgh2-func-CrewTaskMgrAuthSvcs'
+            credentials: {
+                header: {
+                    'x-functions-key': [
+                        '{{zbckw6q67sgh2-func-crewtaskmgrauthsvcs-key}}'
+                    ]
+                }
+            }
+        }
+    }
+
     // resource service_jac3sukjdrxzi_apim_name_644aea511aff160ccc6b04cc 'namedValues@2022-09-01-preview' = {
     //     name: '644aea511aff160ccc6b04cc'
     //     properties: {
@@ -918,9 +971,11 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
 
     // this is causing error : {"code":"ValidationError","message":"One or more fields contain incorrect values:","details":[{"code":"ValidationError","target":"value","message":"Either Value or Keyvault must be provided."}]} probably because it cannot find the property
     resource service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_key 'namedValues@2022-09-01-preview' = {
-        name: '${name}-func-crewtaskmgrauthsvcs-key'
+        //  name: '${name}-func-crewtaskmgrauthsvcs-key'
+        name: 'zbckw6q67sgh2-func-crewtaskmgrauthsvcs-key'
         properties: {
-            displayName: '${name}-func-crewtaskmgrauthsvcs-key'
+            //displayName: '${name}-func-crewtaskmgrauthsvcs-key'
+            displayName: 'zbckw6q67sgh2-func-crewtaskmgrauthsvcs-key'
             tags: [
                 'key'
                 'function'
@@ -929,11 +984,15 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
             secret: true
         }
     }
+
+    /*
     resource Microsoft_ApiManagement_service_properties_service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_key 'properties@2019-01-01' = {
-        name: '${name}-func-crewtaskmgrauthsvcs-key'
+        // name: '${name}-func-crewtaskmgrauthsvcs-key'
+        name: 'zbckw6q67sgh2-func-crewtaskmgrauthsvcs-key'
         properties: {
-            displayName: '${name}-func-crewtaskmgrauthsvcs-key'
-            value: defaultHostKey //'5OCr/8M/HADYHxPwP0P17Y+6NA4utKwV6bfapCUhuYR4SX1UfgxHhg=='
+            // displayName: '${name}-func-crewtaskmgrauthsvcs-key'
+            displayName: 'zbckw6q67sgh2-func-crewtaskmgrauthsvcs-key'
+            value: '5OCr/8M/top-secret-passwsord==' //defaultHostKey 
             tags: [
                 'key'
                 'function'
@@ -942,6 +1001,7 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
             secret: true
         }
     }
+    */
     resource service_jac3sukjdrxzi_apim_name_policy 'policies@2022-09-01-preview' = {
         name: 'policy'
         properties: {
@@ -958,7 +1018,8 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
             state: 'notPublished'
         }
         resource service_jac3sukjdrxzi_apim_name_unlimited_zbckw6q67sgh2_func_crewtaskmgrauthsvcs 'apis@2022-09-01-preview' = {
-            name: '${name}-func-crewtaskmgrauthsvcs'
+            //name: '${name}-func-crewtaskmgrauthsvcs'
+            name: 'zbckw6q67sgh2-func-crewtaskmgrauthsvcs'
 
         }
 
@@ -1007,4 +1068,18 @@ resource service_jac3sukjdrxzi_apim_name_resource 'Microsoft.ApiManagement/servi
     //         allowTracing: false
     //     }
     // }
+}
+resource Microsoft_ApiManagement_service_properties_service_jac3sukjdrxzi_apim_name_zbckw6q67sgh2_func_crewtaskmgrauthsvcs_key 'Microsoft.ApiManagement/service/properties@2019-01-01' = {
+  parent: service_jac3sukjdrxzi_apim_name_resource
+  name: 'zbckw6q67sgh2-func-crewtaskmgrauthsvcs-key'
+  properties: {
+    displayName: 'zbckw6q67sgh2-func-crewtaskmgrauthsvcs-key'
+    value: '5OCr/8M/top-secret-passwsord=='
+    tags: [
+      'key'
+      'function'
+      'auto'
+    ]
+    secret: true
+  }
 }
